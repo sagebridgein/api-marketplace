@@ -1,0 +1,122 @@
+openapi: 3.0.3
+info:
+  title: DeepSeek LLM API
+  description: API for interacting with DeepSeek's AI models.
+  version: 1.0.0
+servers:
+  - url: https://api.deepseek.com/v1
+    description: Production server
+  - url: https://sandbox.api.deepseek.com/v1
+    description: Sandbox server
+
+tags:
+  - name: Completions
+    description: Generate text completions using DeepSeek models.
+
+paths:
+  /completions:
+    post:
+      tags:
+        - Completions
+      summary: Generate text completion
+      description: Returns a text completion for the provided prompt and parameters.
+      operationId: createCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompletionRequest'
+            example:
+              model: "deepseek-chat"
+              prompt: "Explain quantum computing in simple terms"
+              max_tokens: 100
+              temperature: 0.7
+              top_p: 1.0
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletionResponse'
+              example:
+                id: "cmpl-123"
+                object: "text_completion"
+                created: 1645567890
+                model: "deepseek-chat"
+                choices:
+                  - text: "Quantum computing uses qubits..."
+                    index: 0
+                    logprobs: null
+                    finish_reason: "length"
+        '400':
+          description: Bad request (invalid parameters)
+        '401':
+          description: Unauthorized (invalid API key)
+        '429':
+          description: Rate limit exceeded
+
+components:
+  schemas:
+    CompletionRequest:
+      type: object
+      required:
+        - model
+        - prompt
+      properties:
+        model:
+          type: string
+          enum: [deepseek-chat, deepseek-code]
+          description: ID of the model to use.
+        prompt:
+          type: string
+          description: The prompt to generate completions for.
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+          default: 16
+        temperature:
+          type: number
+          minimum: 0.0
+          maximum: 2.0
+          default: 1.0
+        top_p:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          default: 1.0
+
+    CompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              index:
+                type: integer
+              logprobs:
+                type: object
+                nullable: true
+              finish_reason:
+                type: string
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Use your DeepSeek API key (e.g., `Bearer sk-12345`)
