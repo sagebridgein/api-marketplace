@@ -22,10 +22,6 @@ const SearchInput: React.FC<SearchInputProps> = ({
       clearTimeout(timeoutRef.current);
     }
 
-    // timeoutRef.current = setTimeout(() => {
-    //   handleSearch(searchQuery);
-    // }, 300);
-
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);

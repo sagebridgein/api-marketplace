@@ -48,40 +48,44 @@ export class SubscriptionService {
 
   /**
    * Subscribe a user to a plan
-   * @param plan - The subscription plan identifier
+   * @param tierName - The subscription tier identifier
+   * @param paymentMethodId - The payment method identifier
+   * @returns Promise resolving to the subscription details
    * @throws {SubscriptionServiceError} If subscription process fails
    */
-  async subscribe(plan: string): Promise<void> {
+  async subscribe(tierName: string, paymentMethodId?: string): Promise<SubscriptionResponse> {
+    if (!this.userId) {
+      throw new Error("User ID is required");
+    }
+
     this.logger.info(
-      `Starting subscription process for user ${this.userId} with plan ${plan}`
+      `Starting subscription process for user ${this.userId} with tier ${tierName}`
     );
 
     try {
-      const application = await this.createApplication();
+      const response = await fetch('/api/subscriptions/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: this.userId,
+          apiId: this.apiId,
+          tierName,
+          paymentMethodId,
+        }),
+      });
 
-      if (!application) {
-        throw new SubscriptionServiceError(
-          "Failed to create or retrieve application",
-          "APPLICATION_ERROR"
-        );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create subscription');
       }
 
-      const subscription = await this.subscribeToApplication(
-        application.applicationId,
-        this.apiId,
-        plan
-      );
-
-      if (!subscription) {
-        throw new SubscriptionServiceError(
-          "Failed to create subscription",
-          "SUBSCRIPTION_ERROR"
-        );
-      }
-      console.log("subscription", subscription);
+      const subscription = await response.json();
       this.logger.info(
-        `Successfully subscribed user ${this.userId} to plan ${plan}`
+        `Successfully subscribed user ${this.userId} to tier ${tierName}`
       );
+      return subscription;
     } catch (error) {
       const errorMessage = `Subscription process failed for user ${this.userId}`;
       this.logger.error(errorMessage, { error });
@@ -144,7 +148,7 @@ export class SubscriptionService {
   ): Promise<SubscriptionResponse> {
     try {
       const { data } = await this.api.post<SubscriptionResponse>(
-        "/subscribetoapp",
+        "/subscribe",
         {
           applicationId,
           apiId,

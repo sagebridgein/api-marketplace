@@ -17,22 +17,42 @@ interface TagResponse {
   pagination: Pagination;
 }
 
+// Add Category interface if not imported
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Add CategoryResponse interface for consistency with other responses
+interface CategoryResponse {
+  count: number;
+  list: Category[];
+  pagination: Pagination;
+}
+
 // State interface with separated loading states
 interface MarketPlaceState {
   apis: ApiResponse | null;
   tags: TagResponse | null;
+  categories: Category[] | null;
   loading: {
     apis: boolean;
     tags: boolean;
+    categories: boolean;
   };
   errors: {
     apis: string | null;
     tags: string | null;
+    categories: string | null;  // Add categories to errors
   };
   fetchApis: (params?: { limit?: number; offset?: number }) => Promise<void>;
   fetchTags: (params?: { limit?: number; offset?: number }) => Promise<void>;
   loadMoreApis: () => Promise<void>;
   loadMoreTags: () => Promise<void>;
+  fetchCategories: (params?: { limit?: number; offset?: number }) => Promise<void>;
   resetErrors: () => void;
 }
 
@@ -40,13 +60,16 @@ export const useMarketPlaceStore = create<MarketPlaceState>()(
   immer((set, get) => ({
     apis: null,
     tags: null,
+    categories: null, 
     loading: {
       apis: false,
       tags: false,
+      categories: false,
     },
     errors: {
       apis: null,
       tags: null,
+      categories: null, 
     },
 
     fetchApis: async (params = { limit: 10, offset: 0 }) => {
@@ -73,6 +96,33 @@ export const useMarketPlaceStore = create<MarketPlaceState>()(
             err.message ||
             "Failed to fetch APIs";
           state.loading.apis = false;
+        });
+      }
+    },
+    fetchCategories: async (params = { limit: 25, offset: 0 }) => {
+      set((state) => {
+        state.loading.categories = true;
+        state.errors.categories = null;
+      });
+      
+      try {
+        const response = await axios.get<CategoryResponse>(`/api/category`, {
+          params,
+          timeout: 10000,
+        });
+        
+        set((state) => {
+          state.categories = response.data.list; // Update to use list property
+          state.loading.categories = false;
+        });
+      } catch (error) {
+        const err = error as AxiosError<{ message?: string }>;
+        set((state) => {
+          state.errors.categories = 
+            err.response?.data?.message ||
+            err.message ||
+            "Failed to fetch categories";
+          state.loading.categories = false;
         });
       }
     },
@@ -179,105 +229,8 @@ export const useMarketPlaceStore = create<MarketPlaceState>()(
       set((state) => {
         state.errors.apis = null;
         state.errors.tags = null;
+        state.errors.categories = null; // Add categories error reset
       });
     },
   }))
 );
-
-
-// stores/api-store.ts
-// import { create } from 'zustand';
-// import { immer } from 'zustand/middleware/immer';
-// import { persist } from 'zustand/middleware';
-// import { ApiList } from '@/types';
-
-// type ApiState = {
-//   apis: ApiList[];
-//   searchQuery: string;
-//   isLoading: boolean;
-//   // setLoading:(isLoading:boolean)=>void;
-//   error: string | null;
-//   lastFetched: number | null;
-//   fetchApis: () => Promise<void>;
-//   setSearchQuery: (query: string) => void;
-//   filteredApis: () => ApiList[];
-//   reset: () => void;
-// };
-
-// const API_ENDPOINT = '/api/market';
-// const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// export const useMarketPlaceStore = create<ApiState>()(
-//   persist(
-//     immer((set, get) => ({
-//       apis: [],
-//       searchQuery: '',
-//       isLoading: false,
-//       error: null,
-//       lastFetched: null,
-
-//       fetchApis: async () => {
-//         const { lastFetched } = get();
-//         if (lastFetched && Date.now() - lastFetched < CACHE_TTL) return;
-
-//         set({ isLoading: true, error: null });
-        
-//         try {
-//           const controller = new AbortController();
-//           const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-//           const response = await fetch(API_ENDPOINT, {
-//             signal: controller.signal,
-//           });
-//           clearTimeout(timeoutId);
-
-//           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
-//           const data = await response.json();
-//           set({ 
-//             apis: data.list,
-//             lastFetched: Date.now(),
-//             isLoading: false 
-//           });
-//         } catch (err) {
-//           set({ 
-//             error: err instanceof Error ? err.message : 'Request failed',
-//             isLoading: false 
-//           });
-//         }
-//       },
-
-//       setSearchQuery: (query) => {
-//         set({ searchQuery: query.trim() });
-//       },
-
-//       filteredApis: () => {
-//         const { apis, searchQuery } = get();
-//         if (!searchQuery) return apis;
-
-//         const query = searchQuery.toLowerCase();
-//         return apis.filter(api =>
-//           api.name.toLowerCase().includes(query) ||
-//           api.id.toLowerCase().includes(query) ||
-//           api.context.toLowerCase().includes(query) ||
-//           api.version.toLowerCase().includes(query)
-//         );
-//       },
-
-//       reset: () => {
-//         set({ 
-//           apis: [],
-//           searchQuery: '',
-//           lastFetched: null 
-//         });
-//       }
-//     })),
-//     {
-//       name: 'api-storage',
-//       partialize: (state) => ({ 
-//         apis: state.apis,
-//         lastFetched: state.lastFetched 
-//       }),
-//     }
-//   )
-// );

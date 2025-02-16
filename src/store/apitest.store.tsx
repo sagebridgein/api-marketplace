@@ -16,24 +16,36 @@ interface ApiResponse {
   headers: any;
   time: number;
   size: string;
+  config?: any;
 }
 
 interface ApiError {
   message: string;
   status?: number;
   details?: any;
+  code?: string;
+  config?: any;
+}
+
+interface Auth {
+  type: string;
+  token?: string;
+  username?: string;
+  password?: string;
+  keyName?: string;
+  keyValue?: string;
 }
 
 interface ApiTestingState {
   // Request configuration
-  method: Method;
+  method: Method | undefined;
   url: string;
   headers: RequestHeaders;
   queryParams: RequestHeaders;
   body: string;
   selectedEnvironment: string;
   environments: { [key: string]: { baseUrl: string; variables: RequestHeaders } };
-  endpoint:string,
+  endpoint: string;
   // Response data
   response: ApiResponse | null;
   error: ApiError | null;
@@ -46,13 +58,13 @@ interface ApiTestingState {
   }>;
 
   // UI State
-  activeTab: "params" | "headers" | "body" | "tests";
+  activeTab: "params" | "headers" | "body" | "authorizations";
   isSidebarOpen: boolean;
 
   // Actions
-  setMethod: (method: string) => void;
+  setMethod: (method: Method) => void;
   setUrl: (url: string) => void;
-  setEndPoint:(endpoint:string)=>void;
+  setEndPoint: (endpoint: string) => void;
   setHeaders: (headers: RequestHeaders) => void;
   addHeader: (key: string, value: string) => void;
   removeHeader: (key: string) => void;
@@ -68,6 +80,16 @@ interface ApiTestingState {
   clearResponse: () => void;
   clearHistory: () => void;
   sendRequest: () => Promise<void>;
+  auth: Auth;
+  setAuth: (auth: Auth) => void;
+
+  // Add new properties
+  abortController: AbortController | null;
+  requestTimeout: number;
+
+  // Add new actions
+  setRequestTimeout: (timeout: number) => void;
+  cancelRequest: () => void;
 }
 
 export const useApiTestingStore = create<ApiTestingState>()(
@@ -75,19 +97,19 @@ export const useApiTestingStore = create<ApiTestingState>()(
     (set, get) => ({
       // Initial state
       method: "GET",
-      endpoint:"/",
+      endpoint: "/",
       url: "",
       headers: {},
       queryParams: {},
       body: '',
-      selectedEnvironment: "development",
+      selectedEnvironment: "production",
       environments: {
         development: {
-          baseUrl: "http://localhost:3000",
+          baseUrl: "https://api.sagebridge.in/test",
           variables: {},
         },
         production: {
-          baseUrl: "https://api.production.com",
+          baseUrl: "https://api.sagebridge.in",
           variables: {},
         },
       },
@@ -97,9 +119,15 @@ export const useApiTestingStore = create<ApiTestingState>()(
       responseHistory: [],
       activeTab: "params",
       isSidebarOpen: true,
+      auth: {
+        type: 'none'
+      },
+
+      requestTimeout: 30000, // 30 seconds default
+      abortController: null,
 
       // Actions
-      setMethod: (method) => set({ method }),
+      setMethod: (method: Method) => set({ method }),
       
       setUrl: (url) => set({ url }),
       
@@ -154,93 +182,142 @@ export const useApiTestingStore = create<ApiTestingState>()(
       clearResponse: () => set({ response: null, error: null }),
       
       clearHistory: () => set({ responseHistory: [] }),
-      setEndPoint:(endpoint)=>set({endpoint}),
+      setEndPoint: (endpoint) => set({ endpoint }),
+      setRequestTimeout: (timeout: number) => set({ requestTimeout: timeout }),
+      cancelRequest: () => {
+        const { abortController } = get();
+        if (abortController) {
+          abortController.abort();
+          set({ abortController: null, isLoading: false });
+        }
+      },
       sendRequest: async () => {
         const state = get();
         const environment = state.environments[state.selectedEnvironment];
         
-        // Build full URL with query parameters
-        const baseUrl = environment.baseUrl;
-        const fullUrl = new URL(state.url, baseUrl);
-        Object.entries(state.queryParams).forEach(([key, value]) => {
-          fullUrl.searchParams.append(key, value);
-        });
+        // Create new AbortController for this request
+        const abortController = new AbortController();
+        set({ abortController });
 
-        // Replace environment variables in headers
-        const processedHeaders = Object.entries(state.headers).reduce(
-          (acc, [key, value]) => {
-            const processedValue = Object.entries(environment.variables).reduce(
-              (val, [varKey, varValue]) => 
-                val.replace(`{{${varKey}}}`, varValue),
-              value
-            );
-            return { ...acc, [key]: processedValue };
-          },
-          {}
-        );
-
-        set({ isLoading: true, error: null });
-        
         try {
-          const startTime = performance.now();
-          
-          const response: AxiosResponse = await axios({
-            method: state.method.toLowerCase(),
-            url: fullUrl.toString(),
-            headers: processedHeaders,
-            data: state.method !== "GET" ? state.body : undefined,
-          });
-          
-          const endTime = performance.now();
-          const responseTime = endTime - startTime;
-          
-          // Calculate response size
-          const responseSize = JSON.stringify(response.data).length;
-          const formattedSize = responseSize > 1024 
-            ? `${(responseSize / 1024).toFixed(2)} KB` 
-            : `${responseSize} B`;
+          // Build full URL
+          const baseUrl = environment.baseUrl;
+          const fullUrl = `${"https://api.sagebridge.in"}${state.url}/${state.endpoint}`;
+          console.log(fullUrl); 
+          // Process headers with environment variables
+          const processedHeaders = Object.entries(state.headers).reduce(
+            (acc, [key, value]) => {
+              const processedValue = Object.entries(environment.variables).reduce(
+                (val, [varKey, varValue]) => 
+                  val.replace(new RegExp(`{{${varKey}}}`, 'g'), varValue),
+                value
+              );
+              return { ...acc, [key]: processedValue };
+            },
+            {}
+          );
 
-          const apiResponse: ApiResponse = {
-            data: response.data,
-            status: response.status,
-            headers: response.headers,
-            time: Math.round(responseTime),
-            size: formattedSize,
-          };
+          // Add auth headers
+          const authHeaders = getAuthHeaders(state.auth);
+          const finalHeaders = { ...processedHeaders, ...authHeaders };
+
+          set({ isLoading: true, error: null, response: null });
+          
+          const startTime = performance.now();
+
+          // Send request through our API route
+          const response = await fetch('/api/test', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              method: state.method,
+              url: fullUrl,
+              headers: finalHeaders,
+              data: state.method !== "GET" ? parseRequestBody(state.body) : undefined,
+              timeout: state.requestTimeout,
+            }),
+            signal: abortController.signal,
+          });
+
+          const responseData = await response.json();
+          
+          if (!responseData.success) {
+            throw responseData.error;
+          }
 
           // Update state with new response
           set((state) => ({
-            response: apiResponse,
+            response: responseData.response,
             isLoading: false,
+            abortController: null,
             responseHistory: [
               {
                 timestamp: Date.now(),
-                method: state.method,
-                url: fullUrl.toString(),
-                response: apiResponse,
+                method: state.method || 'GET',
+                url: fullUrl,
+                response: responseData.response,
               },
-              ...state.responseHistory.slice(0, 9), // Keep last 10 responses
+              ...state.responseHistory.slice(0, 9),
             ],
           }));
         } catch (error) {
-          const axiosError = error as AxiosError;
           set({
             error: {
-              message: axiosError.message,
-              status: axiosError.response?.status,
-              details: axiosError.response?.data,
+              message: (error as any).message || "Request failed",
+              status: (error as any).status,
+              details: (error as any).data,
+              code: (error as any).code,
             },
             isLoading: false,
+            abortController: null,
           });
         }
       },
+      setAuth: (auth) => set({ auth }),
     }),
     {
       name: "api-testing-store",
       partialize: (state) => ({
         environments: state.environments,
         responseHistory: state.responseHistory,
+        requestTimeout: state.requestTimeout,
       }),
     }
   )
 );
+
+// Helper functions
+function getAuthHeaders(auth: Auth): Record<string, string> {
+  switch (auth.type) {
+    case 'bearer':
+      return auth.token ? { 'Authorization': `Bearer ${auth.token}` } : {};
+    case 'basic':
+      if (auth.username && auth.password) {
+        const credentials = btoa(`${auth.username}:${auth.password}`);
+        return { 'Authorization': `Basic ${credentials}` };
+      }
+      return {};
+    case 'apiKey':
+      return auth.keyName && auth.keyValue ? { [auth.keyName]: auth.keyValue } : {};
+    default:
+      return {};
+  }
+}
+
+function parseRequestBody(body: string): any {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+}
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}

@@ -1,20 +1,9 @@
 "use client";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Search,
-  Filter,
-  ArrowLeft,
-  Star,
-  Users,
-  TrendingUp,
-  Zap,
-  Clock,
-  ChevronDown,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "@/components/ui/input";
+import { Star, TrendingUp, Zap, Clock, ChevronDown } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import APICard from "./APICard";
+import APICard from "./Card";
 import { CategorySidebar } from "./sidebar";
 import SearchInput from "./searchInput";
 import { useMarketPlaceStore } from "@/store/marketplace.store";
@@ -56,7 +45,7 @@ const Marketplace = () => {
 
   useEffect(() => {
     if (apis) {
-      setFilteredApis( apis.list  );
+      setFilteredApis(apis.list);
     }
   }, [apis]);
 

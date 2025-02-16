@@ -48,6 +48,9 @@ export const updateSession = async (request: NextRequest) => {
     if (request.nextUrl.pathname.startsWith("/playground") && error) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
+    if (request.nextUrl.pathname.startsWith("/dashboard") && error) {
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
     if (request.nextUrl.pathname.startsWith("/marketplace") && error) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }

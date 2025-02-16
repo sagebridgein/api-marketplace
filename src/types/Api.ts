@@ -36,6 +36,11 @@ export interface API {
     asyncTransportProtocols: string[];
     egress: boolean;
     subtype: string;
+    updatedAt: string;
+    totalUsers: number;
+    category?: string;
+    logoUrl?: string;
+    documentation?: string;
   }
   
   export interface Tier {

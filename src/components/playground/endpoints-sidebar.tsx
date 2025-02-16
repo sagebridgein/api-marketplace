@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { PathEntry, transformPaths } from "@/helpers";
 import { usePlaygroundStore } from "@/store/playground.store";
 import EndpointSkeleton from "../skelton/endpointitem";
+import { useApiTestingStore } from "@/store/apitest.store";
+import { Method } from "axios";
 
 const methodColors = {
   GET: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
@@ -19,8 +21,8 @@ const methodColors = {
 
 const EndpointsSidebar = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedEndpoint, setSelectedEndpoint] = useState(null);
   const { api, isLoading } = usePlaygroundStore();
+  const { endpoint, method, setEndPoint, setMethod } = useApiTestingStore();
   const [paths, setPaths] = useState<PathEntry[]>([]);
 
   useEffect(() => {
@@ -41,12 +43,15 @@ const EndpointsSidebar = () => {
   const EndpointItem = ({ api, index }: { api: PathEntry; index: number }) => (
     <div
       key={index}
-      onClick={() => setSelectedEndpoint(api.path)}
+      onClick={() => {
+        setEndPoint(api.path);
+        setMethod(api.method as Method);
+      }}
       className={cn(
         "group px-4 py-3 cursor-pointer transition-all duration-200",
         "hover:bg-gray-50 dark:hover:bg-gray-800",
         "border-l-2",
-        selectedEndpoint === index
+        endpoint === api.path && method === api.method
           ? "border-l-blue-500 bg-gray-50 dark:bg-gray-800"
           : "border-l-transparent"
       )}
@@ -55,7 +60,7 @@ const EndpointsSidebar = () => {
         <Badge
           className={cn(
             "px-2 py-0.5 text-xs font-semibold",
-            methodColors[api.method]
+            methodColors[api.method as keyof typeof methodColors]
           )}
         >
           {api.method}

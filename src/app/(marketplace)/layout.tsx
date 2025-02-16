@@ -2,6 +2,7 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "../globals.css";
 import Navbar from "@/components/navbar";
+import StripeProvider from "@/providers/stripeProvider";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -17,7 +18,6 @@ const geistSans = Geist({
   display: "swap",
   subsets: ["latin"],
 });
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,11 +31,13 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
-        >
-          <main className="min-h-screen">
-            <Navbar />
-            {children}
-          </main>
+        > 
+            <main className="min-h-screen">
+              <Navbar />
+              <StripeProvider>
+                {children}
+              </StripeProvider>
+            </main>
         </ThemeProvider>
       </body>
     </html>
