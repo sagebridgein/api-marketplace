@@ -28,13 +28,8 @@ export function BuyerDashboardSidebar() {
     ],
     keys: [
       {
-        title: "Production keys",
+        title: "OAuth keys",
         pathChange: () => router.replace("production"),
-        icon: Key,
-      },
-      {
-        title: "Sandbox keys",
-        pathChange: () => router.replace("sandbox"),
         icon: Key,
       },
     ],
@@ -45,7 +40,7 @@ export function BuyerDashboardSidebar() {
       <SidebarContent>
         <SidebarHeader>
           <SidebarGroupLabel>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Nlpbay</h1>
+            <a  href="/marketplace" className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Nlpbay</a>
           </SidebarGroupLabel>
         </SidebarHeader>
 

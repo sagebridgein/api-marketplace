@@ -10,10 +10,12 @@ import { ClientConfig, GatewayToken } from "@/types/gateway";
 const GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY;
 const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME;
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-const GATEWAY_TOKEN_TABLE="gateway_tokens"
+const GATEWAY_TOKEN_TABLE = "gateway_tokens";
+
 if (!ADMIN_PASSWORD || !ADMIN_USERNAME) {
   throw new Error("username and password of platform is not find");
 }
+
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
@@ -84,7 +86,7 @@ export const signInAction = async (formData: FormData) => {
 
   const { error: token_error } = await supabase
     .from("gateway_tokens")
-    .upsert([
+    .update([
       {
         access_token: gateway_tokens.access_token,
         refresh_token: gateway_tokens.refresh_token,
@@ -94,15 +96,9 @@ export const signInAction = async (formData: FormData) => {
       },
     ])
     .eq("user_id", data.user.id);
-  console.log(token_error);
   if (token_error) {
-    return encodedRedirect(
-      "error",
-      "/sign-in",
-      "something went wrong please trying again later"
-    );
+    return encodedRedirect("error", "/sign-in", "Please create a new account");
   }
-  console.log(register_client);
   return redirect("/marketplace");
 };
 
@@ -234,7 +230,9 @@ export const authForToken = async (
   }
 };
 
-export const refresh_gateway_tokens = async (user_id: string):Promise<boolean> => {
+export const refresh_gateway_tokens = async (
+  user_id: string
+): Promise<boolean> => {
   const supabase = await createClient();
 
   try {
@@ -269,7 +267,7 @@ export const refresh_gateway_tokens = async (user_id: string):Promise<boolean> =
       );
 
       if (!gateway_tokens) {
-        return false
+        return false;
       }
 
       const newExpiry = currentTime + gateway_tokens.expires_in;

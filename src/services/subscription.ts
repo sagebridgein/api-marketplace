@@ -1,7 +1,3 @@
-import {
-  ApplicationCreationResponse,
-  ApplicationGetResponse,
-} from "@/types/subscriptions";
 import axios, { AxiosError, AxiosInstance } from "axios";
 
 interface SubscriptionResponse {
@@ -53,7 +49,10 @@ export class SubscriptionService {
    * @returns Promise resolving to the subscription details
    * @throws {SubscriptionServiceError} If subscription process fails
    */
-  async subscribe(tierName: string, paymentMethodId?: string): Promise<SubscriptionResponse> {
+  async subscribe(
+    tierName: string,
+    paymentMethodId?: string
+  ): Promise<SubscriptionResponse> {
     if (!this.userId) {
       throw new Error("User ID is required");
     }
@@ -63,25 +62,15 @@ export class SubscriptionService {
     );
 
     try {
-      const response = await fetch('/api/subscriptions/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: this.userId,
-          apiId: this.apiId,
-          tierName,
-          paymentMethodId,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create subscription');
+      const { applicationId } = await this.createApplication();
+      const subscription = await this.subscribeToApplication(
+        applicationId,
+        this.apiId,
+        tierName
+      );
+      if (!subscription.status) {
+        throw new Error("Failed to create subscription");
       }
-
-      const subscription = await response.json();
       this.logger.info(
         `Successfully subscribed user ${this.userId} to tier ${tierName}`
       );
@@ -147,15 +136,12 @@ export class SubscriptionService {
     plan: string
   ): Promise<SubscriptionResponse> {
     try {
-      const { data } = await this.api.post<SubscriptionResponse>(
-        "/subscribe",
-        {
-          applicationId,
-          apiId,
-          plan,
-          userId: this.userId,
-        }
-      );
+      const { data } = await this.api.post<SubscriptionResponse>("/subscribe", {
+        applicationId,
+        apiId,
+        plan,
+        userId: this.userId,
+      });
 
       this.logger.info(
         `Successfully created subscription for application ${applicationId}`

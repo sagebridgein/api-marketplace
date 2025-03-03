@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Eye,
   Trash2,
@@ -17,7 +16,6 @@ import {
   Search,
   Filter,
   MoreVertical,
-  Loader2,
   AlertCircle,
   Plus,
   RefreshCcw,
@@ -286,7 +284,7 @@ const SubscriptionDashboard: React.FC<SubscriptionTableProps> = ({
                             className="hover:text-blue-600 hover:underline text-left transition-colors"
                           >
                             <Link
-                              href={`/dashboard/${subscription.applicationId}/generate-oauth-keys/production`}
+                              href={`/dashboard/${subscription.applicationId}/${subscription.apiInfo.name}/${subscription.apiId}/generate-oauth-keys/production`}
                             >
                               {subscription.apiInfo.name}
                             </Link>

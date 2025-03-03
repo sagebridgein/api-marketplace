@@ -1,82 +1,121 @@
 "use client";
+
 import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Menu } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import EndpointsSidebar from "@/components/playground/endpoints-sidebar";
-import ResponseArea from "@/components/playground/response-area";
-import RequestArea from "@/components/playground/request-tabs";
 import { usePlaygroundStore } from "@/store/playground.store";
 import { useParams } from "next/navigation";
 import { useApiTestingStore } from "@/store/apitest.store";
+import { useTheme } from "next-themes";
+import { Loader2 } from "lucide-react";
+import "graphiql/graphiql.css";
+import { RESTPlayground } from "./components/RestAPIPlayground";
+import { GraphQLPlayground } from "./components/GraphQLPlayground";
+import { useToast } from "@/hooks/use-toast";
+import { createGraphiQLFetcher } from "@graphiql/toolkit";
+import { getIntrospectionQuery } from "graphql";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
+import { ApiService } from "@/services/ApiTestService";
+import { useUser } from "@/hooks/useUser";
 
-const Playground = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+interface PlaygroundProps {
+  className?: string;
+}
+
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center h-screen">
+    <Loader2 className="h-8 w-8 animate-spin" />
+  </div>
+);
+
+const Playground: React.FC<PlaygroundProps> = () => {
+  const [isLoading, setIsLoading] = useState(true);
   const { id } = useParams<{ id: string }>();
   const { getApi, api } = usePlaygroundStore();
   const { setUrl } = useApiTestingStore();
+  const { theme } = useTheme();
+  const { toast } = useToast();
+  const { id: userId } = useUser();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { setSandboxKey, sandboxkey } = useApiTestingStore();
   useEffect(() => {
-    if (id) {
-      getApi(id);
-      setUrl(`${api?.context}`);
+    const generateSandboxToken = async () => {
+      if (userId) {
+        const accessToken = await ApiService.generateTestKeys(userId as string);
+        setSandboxKey(accessToken);
+      }
+    };
+    generateSandboxToken()
+  }, [userId]);
+  const fetcher = createGraphiQLFetcher({
+    url: "/api/graphql",
+    fetch: async () => {
+      const response = await fetch("/api/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          HTTPS_ENDPOINT: api?.endpointURLs[0].URLs.https || "",
+          Authorization: `Bearer ${sandboxkey}`,
+        },
+        body: JSON.stringify({
+          query: getIntrospectionQuery(), // ✅ Auto-generates the correct query
+        }),
+      });
+      return response
+    },
+  });
+  useEffect(() => {
+    const initializeApi = async () => {
+      if (id) {
+        try {
+          setIsLoading(true);
+          await getApi(id);
+        } catch (error) {
+          console.error("Failed to initialize API:", error);
+          toast({
+            title: "Error",
+            description: "Failed to initialize API",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeApi();
+  }, [id, getApi, toast]);
+
+  useEffect(() => {
+    if (api?.context) {
+      setUrl(api.context);
     }
-  }, [id]);
+  }, [api, setUrl]);
 
-  useEffect(() => {
-    setUrl(`${api?.context}`);
-  }, [api]);
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
 
-  return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
-      {/* Mobile Sidebar */}
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden fixed top-4 left-4 z-50 text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm"
-          >
-            <Menu className="h-6 w-6" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent
-          side="left"
-          className="w-[280px] sm:w-[320px] p-0 bg-white dark:bg-gray-800"
-        >
-          <EndpointsSidebar />
-        </SheetContent>
-      </Sheet>
+  if (api?.type === "GRAPHQL") {
+    return (
+      <GraphQLPlayground
+        graphQLFetcher={fetcher}
+        sandboxkey={sandboxkey}
+        theme={theme as "light" | "dark"}
+      />
+    );
+  }
 
-      {/* Desktop Sidebar */}
-      <motion.div
-        initial={{ width: 320 }}
-        animate={{ width: isSidebarOpen ? 320 : 0 }}
-        className="hidden lg:block border-r dark:border-gray-700 bg-white dark:bg-gray-800"
-      >
-        {isSidebarOpen && <EndpointsSidebar />}
-      </motion.div>
+  if (api?.type === "HTTP") {
+    return (
+      <TooltipProvider>
+        <RESTPlayground
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+        />
+      </TooltipProvider>
+    );
+  }
 
-      <div className="flex-1 flex flex-col lg:flex-row min-w-0">
-        <div className="flex-1 min-w-0 border-b lg:border-b-0 lg:border-r dark:border-gray-700">
-          <RequestArea />
-        </div>
-        <div className="flex-1 min-w-0">
-          <ResponseArea />
-        </div>
-      </div>
-
-      {/* Sidebar Toggle Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="hidden lg:flex fixed left-2 bottom-4 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-md hover:bg-gray-100 dark:hover:bg-gray-700"
-      >
-        <Menu className="h-4 w-4" />
-      </Button>
-    </div>
-  );
+  return null;
 };
 
 export default Playground;

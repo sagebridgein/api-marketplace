@@ -1,65 +1,43 @@
 import { create } from "zustand";
-import axios, { AxiosError, AxiosResponse, Method } from "axios";
 import { persist } from "zustand/middleware";
-
-interface RequestHeaders {
-  [key: string]: string;
-}
-
-interface RequestBody {
-  [key: string]: any;
-}
-
-interface ApiResponse {
-  data: any;
-  status: number;
-  headers: any;
-  time: number;
-  size: string;
-  config?: any;
-}
-
-interface ApiError {
-  message: string;
-  status?: number;
-  details?: any;
-  code?: string;
-  config?: any;
-}
-
-interface Auth {
-  type: string;
-  token?: string;
-  username?: string;
-  password?: string;
-  keyName?: string;
-  keyValue?: string;
-}
+import {
+  Method,
+  RequestHeaders,
+  ApiResponse,
+  ApiError,
+  Auth,
+  HistoryEntry,
+  ActiveTab,
+  Environment,
+} from "@/types/playground";
+import { DEFAULT_TIMEOUT, DEFAULT_ENVIRONMENTS } from "@/constants";
+import { getAuthHeaders, parseRequestBody } from "@/utils/utils";
+import { ApiService } from "@/services/ApiTestService";
 
 interface ApiTestingState {
   // Request configuration
-  method: Method | undefined;
+  method: Method;
   url: string;
+  auth: Auth;
   headers: RequestHeaders;
   queryParams: RequestHeaders;
   body: string;
   selectedEnvironment: string;
-  environments: { [key: string]: { baseUrl: string; variables: RequestHeaders } };
+  environments: Record<string, Environment>;
   endpoint: string;
+
   // Response data
   response: ApiResponse | null;
   error: ApiError | null;
   isLoading: boolean;
-  responseHistory: Array<{
-    timestamp: number;
-    method: string;
-    url: string;
-    response: ApiResponse;
-  }>;
+  responseHistory: HistoryEntry[];
 
   // UI State
-  activeTab: "params" | "headers" | "body" | "authorizations";
+  activeTab: ActiveTab;
   isSidebarOpen: boolean;
+  sandboxkey: string;
+  requestTimeout: number;
+  abortController: AbortController | null;
 
   // Actions
   setMethod: (method: Method) => void;
@@ -73,21 +51,19 @@ interface ApiTestingState {
   removeQueryParam: (key: string) => void;
   setBody: (body: string) => void;
   setEnvironment: (env: string) => void;
-  addEnvironment: (name: string, baseUrl: string, variables?: RequestHeaders) => void;
+  addEnvironment: (
+    name: string,
+    baseUrl: string,
+    variables?: RequestHeaders
+  ) => void;
   removeEnvironment: (name: string) => void;
-  setActiveTab: (tab: "params" | "headers" | "body" | "tests") => void;
+  setActiveTab: (tab: ActiveTab) => void;
   setSidebarOpen: (isOpen: boolean) => void;
   clearResponse: () => void;
   clearHistory: () => void;
-  sendRequest: () => Promise<void>;
-  auth: Auth;
+  sendRequest: (isSubscribed: boolean, userId: string) => Promise<void>;
+  setSandboxKey: (sandboxkey: string) => void;
   setAuth: (auth: Auth) => void;
-
-  // Add new properties
-  abortController: AbortController | null;
-  requestTimeout: number;
-
-  // Add new actions
   setRequestTimeout: (timeout: number) => void;
   cancelRequest: () => void;
 }
@@ -99,91 +75,74 @@ export const useApiTestingStore = create<ApiTestingState>()(
       method: "GET",
       endpoint: "/",
       url: "",
-      headers: {},
+      headers: { "content-type": "application/json" },
+      sandboxkey: "",
       queryParams: {},
-      body: '',
+      body: "",
       selectedEnvironment: "production",
-      environments: {
-        development: {
-          baseUrl: "https://api.sagebridge.in/test",
-          variables: {},
-        },
-        production: {
-          baseUrl: "https://api.sagebridge.in",
-          variables: {},
-        },
-      },
+      environments: DEFAULT_ENVIRONMENTS,
       response: null,
       error: null,
       isLoading: false,
       responseHistory: [],
-      activeTab: "params",
+      activeTab: "headers",
       isSidebarOpen: true,
-      auth: {
-        type: 'none'
-      },
-
-      requestTimeout: 30000, // 30 seconds default
+      auth: { type: "none" },
+      requestTimeout: DEFAULT_TIMEOUT,
       abortController: null,
 
       // Actions
+      setSandboxKey: (sandboxkey: string) => set({ sandboxkey }),
       setMethod: (method: Method) => set({ method }),
-      
-      setUrl: (url) => set({ url }),
-      
-      setHeaders: (headers) => set({ headers }),
-      
-      addHeader: (key, value) => {
-        const headers = { ...get().headers, [key]: value };
-        set({ headers });
-      },
-      
-      removeHeader: (key) => {
-        const headers = { ...get().headers };
-        delete headers[key];
-        set({ headers });
-      },
-      
-      setQueryParams: (queryParams) => set({ queryParams }),
-      
-      addQueryParam: (key, value) => {
-        const queryParams = { ...get().queryParams, [key]: value };
-        set({ queryParams });
-      },
-      
-      removeQueryParam: (key) => {
-        const queryParams = { ...get().queryParams };
-        delete queryParams[key];
-        set({ queryParams });
-      },
-      
-      setBody: (body) => set({ body }),
-      
-      setEnvironment: (selectedEnvironment) => set({ selectedEnvironment }),
-      
-      addEnvironment: (name, baseUrl, variables = {}) => {
-        const environments = {
-          ...get().environments,
-          [name]: { baseUrl, variables },
-        };
-        set({ environments });
-      },
-      
-      removeEnvironment: (name) => {
-        const environments = { ...get().environments };
-        delete environments[name];
-        set({ environments });
-      },
-      
-      setActiveTab: (activeTab) => set({ activeTab }),
-      
-      setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
-      
+      setUrl: (url: string) => set({ url }),
+      setHeaders: (headers: RequestHeaders) => set({ headers }),
+      addHeader: (key: string, value: string) =>
+        set((state) => ({ headers: { ...state.headers, [key]: value } })),
+      removeHeader: (key: string) =>
+        set((state) => {
+          const headers = { ...state.headers };
+          delete headers[key];
+          return { headers };
+        }),
+      setQueryParams: (queryParams: RequestHeaders) => set({ queryParams }),
+      addQueryParam: (key: string, value: string) =>
+        set((state) => ({
+          queryParams: { ...state.queryParams, [key]: value },
+        })),
+      removeQueryParam: (key: string) =>
+        set((state) => {
+          const queryParams = { ...state.queryParams };
+          delete queryParams[key];
+          return { queryParams };
+        }),
+      setBody: (body: string) => set({ body }),
+      setEnvironment: (selectedEnvironment: string) =>
+        set({ selectedEnvironment }),
+      addEnvironment: (
+        name: string,
+        baseUrl: string,
+        variables: RequestHeaders = {}
+      ) =>
+        set((state) => ({
+          environments: {
+            ...state.environments,
+            [name]: { baseUrl, variables },
+          },
+        })),
+      removeEnvironment: (name: string) =>
+        set((state) => {
+          const environments = { ...state.environments };
+          delete environments[name];
+          return { environments };
+        }),
+      setActiveTab: (activeTab: ActiveTab) => set({ activeTab }),
+      setSidebarOpen: (isSidebarOpen: boolean) => set({ isSidebarOpen }),
       clearResponse: () => set({ response: null, error: null }),
-      
       clearHistory: () => set({ responseHistory: [] }),
-      setEndPoint: (endpoint) => set({ endpoint }),
+      setEndPoint: (endpoint: string) => set({ endpoint }),
       setRequestTimeout: (timeout: number) => set({ requestTimeout: timeout }),
+      setAuth: (auth: Auth) => set({ auth }),
+
       cancelRequest: () => {
         const { abortController } = get();
         if (abortController) {
@@ -191,91 +150,79 @@ export const useApiTestingStore = create<ApiTestingState>()(
           set({ abortController: null, isLoading: false });
         }
       },
-      sendRequest: async () => {
+
+      sendRequest: async (isSubscribed: boolean, userId: string) => {
         const state = get();
         const environment = state.environments[state.selectedEnvironment];
-        
-        // Create new AbortController for this request
         const abortController = new AbortController();
-        set({ abortController });
+
+        set({ abortController, isLoading: true, error: null, response: null });
 
         try {
-          // Build full URL
-          const baseUrl = environment.baseUrl;
-          const fullUrl = `${"https://api.sagebridge.in"}${state.url}/${state.endpoint}`;
-          console.log(fullUrl); 
-          // Process headers with environment variables
+          if (isSubscribed) {
+            if (!get().headers["Authorization"]) {
+              const accessToken = await ApiService.generateTestKeys(userId);
+              get().setAuth({ type: "bearer", token: accessToken });
+              get().setHeaders({
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              });
+            }
+          }
+
+          const fullUrl = `${environment.baseUrl}${state.url}/${state.endpoint}`;
           const processedHeaders = Object.entries(state.headers).reduce(
-            (acc, [key, value]) => {
-              const processedValue = Object.entries(environment.variables).reduce(
-                (val, [varKey, varValue]) => 
-                  val.replace(new RegExp(`{{${varKey}}}`, 'g'), varValue),
+            (acc, [key, value]) => ({
+              ...acc,
+              [key]: Object.entries(environment.variables).reduce(
+                (val, [varKey, varValue]) =>
+                  val.replace(new RegExp(`{{${varKey}}}`, "g"), varValue),
                 value
-              );
-              return { ...acc, [key]: processedValue };
-            },
+              ),
+            }),
             {}
           );
 
-          // Add auth headers
           const authHeaders = getAuthHeaders(state.auth);
           const finalHeaders = { ...processedHeaders, ...authHeaders };
 
-          set({ isLoading: true, error: null, response: null });
-          
-          const startTime = performance.now();
-
-          // Send request through our API route
-          const response = await fetch('/api/test', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              method: state.method,
-              url: fullUrl,
-              headers: finalHeaders,
-              data: state.method !== "GET" ? parseRequestBody(state.body) : undefined,
-              timeout: state.requestTimeout,
-            }),
+          const response = await ApiService.sendRequest({
+            method: state.method,
+            url: fullUrl,
+            headers: get().headers,
+            data:
+              state.method !== "GET" ? parseRequestBody(state.body) : undefined,
+            timeout: state.requestTimeout,
             signal: abortController.signal,
           });
 
-          const responseData = await response.json();
-          
-          if (!responseData.success) {
-            throw responseData.error;
-          }
-
-          // Update state with new response
           set((state) => ({
-            response: responseData.response,
+            response,
             isLoading: false,
             abortController: null,
             responseHistory: [
               {
                 timestamp: Date.now(),
-                method: state.method || 'GET',
+                method: state.method,
                 url: fullUrl,
-                response: responseData.response,
+                response,
               },
               ...state.responseHistory.slice(0, 9),
             ],
           }));
-        } catch (error) {
+        } catch (error: any) {
           set({
             error: {
-              message: (error as any).message || "Request failed",
-              status: (error as any).status,
-              details: (error as any).data,
-              code: (error as any).code,
+              message: error.message || "Request failed",
+              status: error.status,
+              details: error.data,
+              code: error.code,
             },
             isLoading: false,
             abortController: null,
           });
         }
       },
-      setAuth: (auth) => set({ auth }),
     }),
     {
       name: "api-testing-store",
@@ -287,37 +234,3 @@ export const useApiTestingStore = create<ApiTestingState>()(
     }
   )
 );
-
-// Helper functions
-function getAuthHeaders(auth: Auth): Record<string, string> {
-  switch (auth.type) {
-    case 'bearer':
-      return auth.token ? { 'Authorization': `Bearer ${auth.token}` } : {};
-    case 'basic':
-      if (auth.username && auth.password) {
-        const credentials = btoa(`${auth.username}:${auth.password}`);
-        return { 'Authorization': `Basic ${credentials}` };
-      }
-      return {};
-    case 'apiKey':
-      return auth.keyName && auth.keyValue ? { [auth.keyName]: auth.keyValue } : {};
-    default:
-      return {};
-  }
-}
-
-function parseRequestBody(body: string): any {
-  try {
-    return JSON.parse(body);
-  } catch {
-    return body;
-  }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-}

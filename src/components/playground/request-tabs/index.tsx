@@ -18,6 +18,7 @@ import Body from "./body";
 import { ApiDefinition } from "@/types/apiDefinition";
 import { usePlaygroundStore } from "@/store/playground.store";
 import Auth from "./auth";
+import { useUser } from "@/hooks/useUser";
 
 const methodColors = {
   GET: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
@@ -37,9 +38,8 @@ const darkMethodColors = {
 
 const tabs = [
   { id: "headers", icon: Code, label: "Headers" },
-  { id: "params", icon: Settings2, label: "Parameters" },
   { id: "body", icon: Database, label: "Body" },
-  { id: "authorizations", icon: Lock, label: "Auth" },
+  // { id: "authorizations", icon: Lock, label: "Auth" },
 ] as const;
 
 export default function RequestArea() {
@@ -56,7 +56,8 @@ export default function RequestArea() {
 
   const { api } = usePlaygroundStore();
   const [definition, setDefinition] = React.useState<ApiDefinition>();
-
+  const { isSubscribed } = usePlaygroundStore();
+  const { id } = useUser();
   useEffect(() => {
     if (api?.apiDefinition) {
       try {
@@ -69,9 +70,9 @@ export default function RequestArea() {
 
   const handleSubmit = async () => {
     if (!endpoint) return;
-    await sendRequest();
+    if (id) await sendRequest(isSubscribed, id);
   };
-
+ console.log(isSubscribed,)
   return (
     <div className="w-full flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
       {/* Request Header */}
@@ -121,7 +122,7 @@ export default function RequestArea() {
             />
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !endpoint}
+              disabled={!isSubscribed || isLoading  || !endpoint}
               className={cn(
                 "absolute right-0 top-0 bottom-0",
                 "bg-blue-500 hover:bg-blue-600 text-white",
@@ -145,17 +146,16 @@ export default function RequestArea() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as typeof activeTab)}
-        className="flex-1 flex flex-col"
+        className="flex-1 flex flex-col w-full"
       >
         <ScrollArea className="w-full">
-          <TabsList className="inline-flex px-2 py-1 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+          <TabsList className="inline-flex px-2 py-1 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 w-full">
             {tabs.map(({ id, icon: Icon, label }) => (
               <TabsTrigger
                 key={id}
                 value={id}
                 className={cn(
-                  "px-4 py-2 font-medium capitalize whitespace-nowrap",
-                  "text-gray-600 dark:text-gray-400",
+                  "text-gray-600 dark:text-gray-400 w-full",
                   "rounded-md transition-all duration-200",
                   "data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800",
                   "data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400",
@@ -176,11 +176,7 @@ export default function RequestArea() {
             {activeTab === "headers" && <Headers />}
             {activeTab === "body" && <Body />}
             {activeTab === "authorizations" && <Auth />}
-            {activeTab === "params" && (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Query parameters coming soon...
-              </div>
-            )}
+        
           </div>
         </ScrollArea>
       </Tabs>

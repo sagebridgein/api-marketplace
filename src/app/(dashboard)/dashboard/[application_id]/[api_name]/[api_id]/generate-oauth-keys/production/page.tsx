@@ -27,6 +27,7 @@ import { useUser } from "@/hooks/useUser";
 import GenerateKeys from "../components/generate-keys-sheet";
 import AccessTokenDialog from "../components/access-token-dialog";
 import CurlDialog from "../components/curl-dialog";
+import TryOut from "../components/TryOut";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -36,7 +37,7 @@ const fadeIn = {
 
 const TokenGenerationPage = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { application_id } = useParams();
+  const { application_id,api_name,api_id } = useParams();
   const { id } = useUser();
   const {
     consumerKey,
@@ -52,7 +53,7 @@ const TokenGenerationPage = () => {
 
   useEffect(() => {
     if (id) {
-      fetchOAuthKeys(id, application_id as string);
+      fetchOAuthKeys(application_id as string);
     }
   }, [id]);
 
@@ -100,7 +101,13 @@ const TokenGenerationPage = () => {
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </BreadcrumbSeparator>
               <BreadcrumbItem>
-                <BreadcrumbPage>Production Keys</BreadcrumbPage>
+                <BreadcrumbPage>{(api_name as string).replace(/%20/g, "")}</BreadcrumbPage>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Production Key</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -117,7 +124,7 @@ const TokenGenerationPage = () => {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  Production API Authentication
+                 Production API Authentication
                 </h1>
                 <p className="text-muted-foreground">
                   Securely manage your API authentication credentials
@@ -281,14 +288,19 @@ const TokenGenerationPage = () => {
             <p className="text-sm text-muted-foreground text-center">
               Generate access tokens to authenticate your API requests
             </p>
+            <TryOut apiId={api_id as string}/>
+
           </motion.div>
+
         </motion.div>
       </div>
 
       <GenerateKeys
         isDrawerOpen={isDrawerOpen}
         setIsDrawerOpen={setIsDrawerOpen}
+        application_id={application_id as string}
       />
+
 
       <AccessTokenDialog
         isOpen={isAccessTokenDialogOpen}

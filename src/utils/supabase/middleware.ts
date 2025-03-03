@@ -1,10 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { refresh_gateway_tokens } from "@/app/actions";
+
+const PROTECTED_ROUTES = ['/playground', '/dashboard'];
+const PUBLIC_ROUTES = ['/sign-in', '/error', '/auth/callback'];
+
 export const updateSession = async (request: NextRequest) => {
-  // This `try/catch` block is only here for the interactive tutorial.
-  // Feel free to remove once you have Supabase connected.
   try {
+    const currentPath = request.nextUrl.pathname;
+
+    // Skip middleware for public routes
+    if (PUBLIC_ROUTES.some(route => currentPath.startsWith(route))) {
+      return NextResponse.next();
+    }
+
     // Create an unmodified response
     let response = NextResponse.next({
       request: {
@@ -21,52 +30,55 @@ export const updateSession = async (request: NextRequest) => {
             return request.cookies.getAll();
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            );
-            response = NextResponse.next({
-              request,
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
             });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options)
-            );
           },
         },
       }
     );
 
-    // This will refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/server-side/nextjs
+    // Get user session
     const { error, data } = await supabase.auth.getUser();
-    const refresh_gateway = await refresh_gateway_tokens(
-      data?.user?.id as string
-    );
-    if (!refresh_gateway) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-    // protected routes
-    if (request.nextUrl.pathname.startsWith("/playground") && error) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-    if (request.nextUrl.pathname.startsWith("/dashboard") && error) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-    if (request.nextUrl.pathname.startsWith("/marketplace") && error) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-    if (request.nextUrl.pathname === "/" && !error) {
-      return NextResponse.redirect(new URL("/marketplace", request.url));
+    
+    // Handle authentication state
+    if (error) {
+      // If user is not authenticated and trying to access protected routes
+      if (PROTECTED_ROUTES.some(route => currentPath.startsWith(route))) {
+        const signInUrl = new URL('/sign-in', request.url);
+        signInUrl.searchParams.set('redirectTo', currentPath);
+        return NextResponse.redirect(signInUrl);
+      }
+    } else {
+      // User is authenticated
+      try {
+        // Only refresh tokens for protected routes
+        if (PROTECTED_ROUTES.some(route => currentPath.startsWith(route))) {
+          const refresh_gateway = await refresh_gateway_tokens(data.user.id);
+          if (!refresh_gateway) {
+            return NextResponse.redirect(new URL('/sign-in', request.url));
+          }
+        }
+
+        // Redirect authenticated users from home to marketplace
+        if (currentPath === '/') {
+          return NextResponse.redirect(new URL('/marketplace', request.url));
+        }
+      } catch (tokenError) {
+        // If token refresh fails, only redirect on protected routes
+        if (PROTECTED_ROUTES.some(route => currentPath.startsWith(route))) {
+          return NextResponse.redirect(new URL('/sign-in', request.url));
+        }
+      }
     }
 
     return response;
   } catch (e) {
-    // If you are here, a Supabase client could not be created!
-    // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
-    return NextResponse.next({
-      request: {
-        headers: request.headers,
-      },
-    });
+    console.error('Middleware error:', e);
+    // Don't redirect to error page if we're already on a public route
+    if (PUBLIC_ROUTES.some(route => request.nextUrl.pathname.startsWith(route))) {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL('/error', request.url));
   }
 };

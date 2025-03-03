@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import axios from "axios";
-import { createClient } from "@/utils/supabase/server";
-
+import ServerAPI from "@/lib/axios-server-instance";
 export const GET = async (
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const supabase = await createClient();
   const resolvedParams = await context.params;
   const id = resolvedParams.id;
 
@@ -18,28 +15,8 @@ export const GET = async (
   }
 
   try {
-    const { data, error } = await supabase
-      .from("gateway_tokens")
-      .select("access_token")
-      .eq("user_id", id)
-      .single();
-
-    if (error) {
-      console.error("Supabase Error:", error);
-      return NextResponse.json(
-        { error: "Gateway access_token not found" },
-        { status: 404 }
-      );
-    }
-
-    const { data: applications } = await axios.get(
-      `https://app.sagebridge.in/api/am/devportal/v3/applications?query=${id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${data.access_token}`,
-          "Content-Type": "application/json",
-        },
-      }
+    const { data: applications } = await ServerAPI.get(
+      `/api/am/devportal/v3/applications?query=${id}`
     );
 
     const application = applications.list[0];

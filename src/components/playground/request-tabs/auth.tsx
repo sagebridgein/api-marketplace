@@ -9,6 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useApiTestingStore } from "@/store/apitest.store";
 import { cn } from "@/lib/utils";
+import { AuthType } from "@/types/playground";
 
 const authTypes = [
   { value: "none", label: "No Auth" },
@@ -20,7 +21,7 @@ const authTypes = [
 export default function Auth() {
   const { auth, setAuth } = useApiTestingStore();
 
-  const handleAuthTypeChange = (value: string) => {
+  const handleAuthTypeChange = (value: AuthType) => {
     setAuth({ ...auth, type: value });
   };
 

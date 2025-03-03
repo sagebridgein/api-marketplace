@@ -28,10 +28,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useBuyerKeysStore } from "@/store/buyer-keys";
+import { useUser } from "@/hooks/useUser";
 
-interface TokenConfig {
+export interface TokenConfig {
   accessTokenExpiry: string;
   refreshTokenExpiry: string;
+  Type:"PRODUCTION" | "SANDBOX"
   grantTypes: {
     refreshToken: boolean;
     password: boolean;
@@ -51,15 +54,20 @@ const fadeInUp = {
 export default function GenerateKeys({
   isDrawerOpen,
   setIsDrawerOpen,
+  application_id,
 }: {
   isDrawerOpen: boolean;
   setIsDrawerOpen: Dispatch<SetStateAction<boolean>>;
+  application_id: string;
 }) {
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
   const { toast } = useToast();
+  const { id } = useUser();
+  const { generateOAuthKeys } = useBuyerKeysStore();
   const [tokenConfig, setTokenConfig] = useState<TokenConfig>({
     accessTokenExpiry: "3600",
     refreshTokenExpiry: "86400",
+    Type:"PRODUCTION",
     grantTypes: {
       refreshToken: true,
       password: true,
@@ -69,12 +77,11 @@ export default function GenerateKeys({
     tokenFormat: "JWT",
     securityLevel: "Medium",
   });
-
   const handleConfigSubmit = async () => {
     try {
       setIsGeneratingKeys(true);
       await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      if (id) generateOAuthKeys(application_id,tokenConfig);
       toast({
         title: "Keys Generated Successfully",
         description: "Your API keys have been created and are ready to use",

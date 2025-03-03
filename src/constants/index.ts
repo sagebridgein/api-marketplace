@@ -32,3 +32,16 @@ export const methodColors = {
 
 export  const apiVersions = ["v1", "v2", "v3-beta"];
 export  const categories = ["all", "users", "products", "orders", "auth"];
+
+
+export const DEFAULT_TIMEOUT = 30000;
+export const DEFAULT_ENVIRONMENTS = {
+  development: {
+    baseUrl: 'https://api.sagebridge.in/test',
+    variables: {},
+  },
+  production: {
+    baseUrl: 'https://api.sagebridge.in',
+    variables: {},
+  },
+};
