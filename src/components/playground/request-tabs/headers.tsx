@@ -1,41 +1,87 @@
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { TabsContent } from "@/components/ui/tabs";
-import { Plus, Trash, Tag, AlertCircle } from "lucide-react";
+import { Tag, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useApiTestingStore } from "@/store/apitest.store";
-import { cn } from "@/lib/utils";
-
-interface KeyValuePair {
-  key: string;
-  value: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Headers() {
-  const [headers, setHeaders] = useState<KeyValuePair[]>([
-    { key: "", value: "" }
-  ]);
+  const { headers } = useApiTestingStore();
+  const [expandedValues, setExpandedValues] = useState<Record<string, boolean>>({});
 
-  const handleAddHeader = () => {
-    setHeaders([...headers, { key: "", value: "" }]);
-  };
+  const headersList = Object.entries(headers);
+  const isEmptyHeaders = headersList.length === 0;
 
-  const handleRemoveHeader = (index: number) => {
-    if (headers.length === 1) {
-      setHeaders([{ key: "", value: "" }]);
-    } else {
-      setHeaders(headers.filter((_, i) => i !== index));
+  const truncateValue = (value: string, key: string) => {
+    const isAuth = key.toLowerCase() === 'authorization';
+    const isSensitive = key.toLowerCase().includes('token') || 
+                       key.toLowerCase().includes('key') || 
+                       key.toLowerCase().includes('secret') ||
+                       key.toLowerCase().includes('password') ||
+                       isAuth;
+    
+    // For Authorization header, always show truncated version
+    if (isAuth) {
+      return (
+        <div className="truncate select-none">
+          {`${value.slice(0, 15)}...`}
+        </div>
+      );
     }
-  };
 
-  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
-    const newHeaders = [...headers];
-    newHeaders[index][field] = value;
-    setHeaders(newHeaders);
-  };
+    if (value.length <= 50) {
+      return <div className="select-none">{value}</div>;
+    }
 
-  const isEmptyHeaders = headers.length === 1 && !headers[0].key && !headers[0].value;
+    if (expandedValues[key]) {
+      return (
+        <div className="flex items-center gap-2 select-none">
+          <span className="break-all">{value}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpandedValues(prev => ({ ...prev, [key]: false }))}
+            className="h-6 px-2 text-gray-500 hover:text-gray-700 shrink-0"
+          >
+            <EyeOff className="h-3 w-3" />
+          </Button>
+        </div>
+      );
+    }
+
+    const displayValue = isSensitive 
+      ? `${value.slice(0, 20)}...${value.slice(-4)}`
+      : `${value.slice(0, 50)}...`;
+
+    return (
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-2 select-none">
+              <span className="truncate">{displayValue}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExpandedValues(prev => ({ ...prev, [key]: true }))}
+                className="h-6 px-2 text-gray-500 hover:text-gray-700 shrink-0"
+              >
+                <Eye className="h-3 w-3" />
+              </Button>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-sm">
+            Click to show full value
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
 
   return (
     <TabsContent value="headers" className="m-0 focus:outline-none">
@@ -47,92 +93,42 @@ export default function Headers() {
             <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
               Request Headers
             </h3>
+            <Badge variant="secondary" className="ml-2">
+              {headersList.length} headers
+            </Badge>
           </div>
           {isEmptyHeaders && (
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
               <AlertCircle className="h-4 w-4" />
-              <span className="text-xs">No headers added</span>
+              <span className="text-xs">No headers present</span>
             </div>
           )}
         </div>
 
         {/* Headers List */}
-        <div className="space-y-3">
-          {headers.map((header, index) => (
-            <div
-              key={index}
-              className={cn(
-                "group flex items-center gap-3",
-                "p-2 rounded-lg",
-                "bg-gray-50 dark:bg-gray-800/50",
-                "border border-transparent",
-                "hover:border-gray-200 dark:hover:border-gray-700",
-                "transition-all duration-200"
-              )}
-            >
-              <Input
-                placeholder="Header name"
-                value={header.key}
-                onChange={(e) => handleHeaderChange(index, 'key', e.target.value)}
-                className={cn(
-                  "flex-1",
-                  "bg-white dark:bg-gray-800",
-                  "border-gray-200 dark:border-gray-700",
-                  "focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                  "transition-all duration-200"
-                )}
-              />
-              <Input
-                placeholder="Value"
-                value={header.value}
-                onChange={(e) => handleHeaderChange(index, 'value', e.target.value)}
-                className={cn(
-                  "flex-1",
-                  "bg-white dark:bg-gray-800",
-                  "border-gray-200 dark:border-gray-700",
-                  "focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
-                  "transition-all duration-200"
-                )}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveHeader(index)}
-                className={cn(
-                  "opacity-0 group-hover:opacity-100",
-                  "text-gray-400 hover:text-red-500",
-                  "dark:text-gray-500 dark:hover:text-red-400",
-                  "transition-all duration-200"
-                )}
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        {/* Add Header Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAddHeader}
-          className={cn(
-            "w-full",
-            "border-dashed border-gray-200 dark:border-gray-700",
-            "text-gray-600 dark:text-gray-400",
-            "hover:border-blue-500 hover:text-blue-500",
-            "dark:hover:border-blue-400 dark:hover:text-blue-400",
-            "transition-all duration-200"
-          )}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Header
-        </Button>
-
-        {/* Headers Summary */}
         {!isEmptyHeaders && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {headers.filter(h => h.key && h.value).length} active headers
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="grid grid-cols-[auto,1fr] divide-y divide-gray-200 dark:divide-gray-800">
+              {headersList.map(([key, value]) => (
+                <React.Fragment key={key}>
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 font-medium text-sm text-gray-600 dark:text-gray-400 select-none">
+                    {key}
+                  </div>
+                  <div className="px-4 py-2 bg-white dark:bg-gray-800 text-sm font-mono overflow-hidden">
+                    {truncateValue(value, key)}
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {isEmptyHeaders && (
+          <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              No headers are configured for this request
+            </div>
           </div>
         )}
       </div>

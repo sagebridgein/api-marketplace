@@ -95,7 +95,7 @@ export function CategorySidebar({ count }: { count: number }) {
                   whileHover={{ x: 4 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <span className="flex-1 text-left font-medium">All APIs</span>
+                  <span className="flex-1 text-left font-medium">All APIs  {count}</span>
                   {selectedCategory === "All" && (
                     <ChevronRight className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   )}

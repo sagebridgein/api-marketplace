@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Check, Zap, X, Loader2, AlertCircle } from "lucide-react";
+import { Check, Zap, X, Loader2, AlertCircle, ChevronRight, Home } from "lucide-react";
 import { usePlaygroundStore } from "@/store/playground.store";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,9 +10,15 @@ import { Tier } from "@/types/Api";
 import { SubscriptionService } from "@/services/subscription";
 import { useUser } from "@/hooks/useUser";
 import { toast } from "@/hooks/use-toast";
-// import BillingDetailsForm from "./components/billingDetails";
-import {useStripe, useElements, CardElement} from '@stripe/react-stripe-js';
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
+import CheckoutForm from "./components/checkoutform";
+import Link from "next/link";
 
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+);
 const APIPricing = () => {
   const { api, getApi, isLoading } = usePlaygroundStore();
   const { id } = useParams<{ id: string }>();
@@ -34,8 +40,6 @@ const APIPricing = () => {
     }
     const card = elements.getElement(CardElement);
     const result = await stripe.createToken(card);
-    
-    
   };
   const router = useRouter();
   useEffect(() => {
@@ -79,7 +83,7 @@ const APIPricing = () => {
         title: "Success",
         description: `Successfully subscribed to ${tierName} tier`,
       });
-      router.push("/dashboard/apis");
+      router.push("/dashboard");
     } catch (error) {
       toast({
         variant: "destructive",
@@ -121,35 +125,81 @@ const APIPricing = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Choose Your Plan
-          </h1>
-          <p className="text-lg text-muted-foreground mb-8">
-            Select the perfect plan for your API needs
-          </p>
-
-          {/* Two Column Layout for larger screens */}
-          <div
-            className={`grid ${selectedPlan ? "lg:grid-cols-2" : "lg:grid-cols-1"} gap-8 items-start`}
+        <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-8">
+          <Link 
+            href="/marketplace" 
+            className="flex items-center hover:text-foreground transition-colors"
           >
-            {selectedPlan && (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div>
-                  <div>{selectedPlan.tierName}</div>
-                  <div>{selectedPlan.tierPlan}</div>
-                  <div>{selectedPlan.monetizationAttributes?.billingCycle}</div>
-                  <div>{selectedPlan.monetizationAttributes?.currencyType}</div>
-                  <div>{selectedPlan.monetizationAttributes?.fixedPrice}</div>
-                  <div>
-                    {selectedPlan.monetizationAttributes?.pricePerRequest}
-                  </div>
-                </div>
+            <Home className="h-4 w-4 mr-1" />
+            <span>Marketplace</span>
+          </Link>
+          <ChevronRight className="h-4 w-4" />
+          <Link 
+            href={`/playground/${id}`}
+            className="hover:text-foreground transition-colors"
+          >
+            Playground
+          </Link>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground font-medium">
+            {api?.name || 'API'} Pricing
+          </span>
+        </nav>
 
+        <div className="text-center mb-16">
+          <h1 className="text-4xl font-bold text-foreground mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
+            {selectedPlan ? 'Complete Your Purchase' : 'Choose Your Plan'}
+          </h1>
+          {!selectedPlan && (
+            <p className="text-lg text-muted-foreground mb-8">
+              Select the perfect plan for your API needs
+            </p>
+          )}
+
+          {/* Main Content */}
+          <div className={`${selectedPlan ? 'max-w-4xl mx-auto' : ''}`}>
+            {/* {selectedPlan ? (
+              <div className="grid lg:grid-cols-2 gap-8 text-left">
+                <Card className="p-6">
+                  <h2 className="text-2xl font-semibold mb-6">Order Summary</h2>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center pb-4 border-b">
+                      <span className="font-medium">Plan</span>
+                      <span className="text-lg font-semibold">{selectedPlan.tierName}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b">
+                      <span className="font-medium">Billing Cycle</span>
+                      <span>{selectedPlan.monetizationAttributes?.billingCycle}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b">
+                      <span className="font-medium">Price</span>
+                      <span className="text-xl font-bold">
+                        {formatPrice(selectedPlan.monetizationAttributes?.fixedPrice || '0')}
+                      </span>
+                    </div>
+                    {selectedPlan.monetizationAttributes?.pricePerRequest && (
+                      <div className="flex justify-between items-center pb-4 border-b">
+                        <span className="font-medium">Price per Request</span>
+                        <span>{formatPrice(selectedPlan.monetizationAttributes.pricePerRequest)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedPlan(null)}
+                    className="mt-6 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center"
+                  >
+                    <X className="h-4 w-4 mr-1" /> Change Plan
+                  </button>
+                </Card>
+
+                <Card className="p-6">
+                  <h2 className="text-2xl font-semibold mb-6">Payment Details</h2>
+                  <Elements stripe={stripePromise}>
+                    <CheckoutForm />
+                  </Elements>
+                </Card>
               </div>
-            )}
-            {/* Pricing Tiers */}
-            {!selectedPlan && (
+            ) : ( */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {tiers.map((tier, index) => {
                   const isPopular =
@@ -161,63 +211,59 @@ const APIPricing = () => {
                   return (
                     <Card
                       key={tier.tierName}
-                      className={`relative overflow-hidden transition-all duration-300 hover:shadow-xl ${
-                        isPopular
-                          ? "border-blue-500 border-2"
-                          : "border-gray-200"
-                      }`}
+                      className={`relative overflow-hidden transition-all duration-300 hover:shadow-xl backdrop-blur-sm 
+                        ${isPopular 
+                          ? "border-blue-500/50 border-2 dark:bg-blue-950/20" 
+                          : "border-border dark:bg-gray-900/50"
+                        } hover:scale-[1.02]`}
                     >
                       {isPopular && (
                         <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 transform">
-                          <span className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-1 text-sm font-medium text-white">
+                          <span className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-1 text-sm font-medium text-white shadow-lg">
                             Popular
                           </span>
                         </div>
                       )}
                       <CardContent className="p-8">
                         <div className="mb-6">
-                          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                          <h3 className="text-2xl font-bold text-foreground mb-2">
                             {tier.tierName}
                           </h3>
-                          <p className="text-gray-500 dark:text-gray-400">
+                          <p className="text-muted-foreground">
                             {tier.tierPlan}
                           </p>
                         </div>
 
                         <div className="mb-6">
                           <div className="flex items-baseline">
-                            <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                            <span className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
                               {price}
                             </span>
                             {tier.monetizationAttributes && (
-                              <span className="ml-2 text-gray-500 dark:text-gray-400">
+                              <span className="ml-2 text-muted-foreground">
                                 /{tier.monetizationAttributes.billingCycle}
                               </span>
                             )}
                           </div>
-                          {tier.monetizationAttributes &&
-                            tier.monetizationAttributes.pricePerRequest && (
-                              <div className="mt-2 flex items-center text-gray-500 dark:text-gray-400">
-                                <Zap className="mr-1 h-4 w-4" />
-                                <span className="text-sm">
-                                  {formatPrice(
-                                    tier.monetizationAttributes.pricePerRequest
-                                  )}{" "}
-                                  per request
-                                </span>
-                              </div>
-                            )}
+                          {tier.monetizationAttributes?.pricePerRequest && (
+                            <div className="mt-2 flex items-center text-muted-foreground">
+                              <Zap className="mr-1 h-4 w-4 text-yellow-500" />
+                              <span className="text-sm">
+                                {formatPrice(tier.monetizationAttributes.pricePerRequest)}{" "}
+                                per request
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         <button
-                          onClick={() => setSelectedPlan(tier)}
-                          // onClick={() => handleSubscribe(tier.tierName)}
+                          onClick={() => handleSubscribe(tier.tierName)}
                           disabled={loadingTiers[tier.tierName]}
-                          className={`w-full rounded-lg py-3 px-6 font-medium transition-colors ${
-                            isPopular
-                              ? "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400"
-                              : "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
-                          } flex items-center justify-center space-x-2`}
+                          className={`w-full rounded-lg py-3 px-6 font-medium transition-all duration-300 
+                            ${isPopular
+                              ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 disabled:opacity-50"
+                              : "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 disabled:opacity-50"
+                            } flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl`}
                         >
                           {loadingTiers[tier.tierName] ? (
                             <>
@@ -225,28 +271,23 @@ const APIPricing = () => {
                               <span>Processing...</span>
                             </>
                           ) : (
-                            <span>
-                              {tier.tierName === "Free"
-                                ? "Choose Plan"
-                                : "Subscribe"}
-                            </span>
+                            <span>Subscribe</span>
                           )}
                         </button>
 
                         <div className="mt-8">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white mb-4">
+                          <p className="text-sm font-medium text-foreground mb-4">
                             Plan Features:
                           </p>
                           <ul className="space-y-3">
                             {tier.monetizationAttributes && (
                               <>
-                                <li className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                                <li className="flex items-center text-sm text-muted-foreground">
                                   <Check className="mr-3 h-5 w-5 text-green-500 flex-shrink-0" />
-                                  {tier.monetizationAttributes &&
-                                    tier.monetizationAttributes.billingCycle}
-                                  billing cycle
+                                  {tier.monetizationAttributes.billingCycle}
+                                  {" "}billing cycle
                                 </li>
-                                <li className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                                <li className="flex items-center text-sm text-muted-foreground">
                                   <Check className="mr-3 h-5 w-5 text-green-500 flex-shrink-0" />
                                   {tier.monetizationAttributes.currencyType}{" "}
                                   payments
@@ -260,7 +301,7 @@ const APIPricing = () => {
                   );
                 })}
               </div>
-            )}
+            {/* )} */}
           </div>
         </div>
       </div>

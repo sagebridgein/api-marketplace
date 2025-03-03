@@ -183,6 +183,7 @@ const Login = async({ searchParams }: { searchParams: Promise<Message> }) => {
               </motion.div>
 
               <FormMessage message={(await searchParams)} />
+              
 
               <div className="space-y-4">
                 <p className="text-center text-sm text-gray-500">

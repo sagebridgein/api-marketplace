@@ -40,15 +40,15 @@ export async function POST(req: NextRequest) {
         timeout,
         validateStatus: () => true, // Handle all status codes
       });
-
+     
       const endTime = performance.now();
       const responseTime = Math.round(endTime - startTime);
 
       // Calculate response size
       const responseSize = new Blob([JSON.stringify(response.data)]).size;
       const formattedSize = formatSize(responseSize);
-
       // Return formatted response
+      console.log(response.data)
       return NextResponse.json({
         success: true,
         response: {
